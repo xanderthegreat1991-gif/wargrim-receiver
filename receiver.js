@@ -10,8 +10,28 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
+  var RECEIVER_VERSION = '2026-10-05 fix-1';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
+
+  /* ---------------- log: Chrome (chrome://inspect or http://<TV>:9222) AND the phone's log file (tag TVLOG) ---------------- */
+  var castCtx = null, phoneReady = false, logQueue = [], logSecond = 0, logCount = 0;
+  function log(msg) {
+    var line = new Date().toISOString().substr(11, 12) + ' ' + msg;
+    try { console.log('[WG] ' + line); } catch (e) {}
+    // Lines are kept until a phone is connected (sending earlier only fails), then sent in order.
+    if (!castCtx || !phoneReady) { logQueue.push(line); if (logQueue.length > 60) logQueue.shift(); return; }
+    sendLog(line);
+  }
+  function sendLog(line) {
+    var now = Date.now();
+    if (now - logSecond > 1000) { logSecond = now; logCount = 0; }
+    if (++logCount > 15) return;                     // at most 15 lines a second: never flood the channel
+    try { castCtx.sendCustomMessage(NS, undefined, {type: 'log', text: line}); } catch (e) { try { console.warn('[WG] log send failed', e); } catch (x) {} }
+  }
+  function flushLog() { var q = logQueue; logQueue = []; q.forEach(sendLog); }
+  window.addEventListener('error', function (e) { log('JS ERROR: ' + (e.message || e) + ' at ' + (e.filename || '') + ':' + (e.lineno || '')); });
+  window.addEventListener('unhandledrejection', function (e) { log('JS PROMISE ERROR: ' + (e.reason && (e.reason.message || e.reason))); });
 
   var state = {
     themeId: 'classic', reduce: false, showLyrics: true, showDwarf: true,
@@ -73,6 +93,7 @@
   function showLyricsFor(key) {
     var e = state.lyricsByKey[key];
     var list = $('lylist'); list.innerHTML = ''; state.curIdx = -1;
+    log('lyrics shown for ' + String(key || '').split('/').pop() + ': ' + (!e ? 'none received yet' : e.lines.length + ' lines, synced=' + e.synced) + ' (lyrics on=' + state.showLyrics + ')');
     if (!e || !e.lines.length) { state.lines = []; state.synced = false; refreshFlags(); return; }
     state.lines = e.lines; state.synced = e.synced;
     var frag = document.createDocumentFragment();
@@ -125,11 +146,19 @@
     try {
       var el = document.querySelector('video,audio');
       if (!el) { var cmp = document.getElementById('cmp'); el = cmp && cmp.shadowRoot && cmp.shadowRoot.querySelector('video,audio'); }
-      if (!el) { analyserTried = false; return; }
+      if (!el) { analyserTried = false; log('beat: no media element yet'); return; }
+      // crossOrigin matters: audio from another address (the phone) routed into Web Audio WITHOUT it can come out SILENT
+      log('beat: media element ' + el.tagName + ' crossOrigin=' + el.crossOrigin + ' src=' + String(el.currentSrc || el.src || '').substr(0, 60));
       var AC = window.AudioContext || window.webkitAudioContext; var ac = new AC();
       var src = ac.createMediaElementSource(el); analyser = ac.createAnalyser(); analyser.fftSize = 256;
       src.connect(analyser); analyser.connect(ac.destination); freq = new Uint8Array(analyser.frequencyBinCount);
-    } catch (e) { analyser = null; }
+      log('beat: analyser connected, audio context state=' + ac.state);
+      setTimeout(function () {                      // 3 s later: is any sound coming through the analyser?
+        if (!analyser) return;
+        analyser.getByteFrequencyData(freq); var sum = 0; for (var i = 0; i < freq.length; i++) sum += freq[i];
+        log('beat: 3 s check, audio level sum=' + sum + (sum === 0 && state.playing ? ' (ALL ZERO while playing: the sound may be muted)' : ''));
+      }, 3000);
+    } catch (e) { analyser = null; log('beat: analyser failed: ' + (e.message || e)); }
   }
   function bassLevel(now) {
     if (analyser) {
@@ -223,7 +252,12 @@
 
   /* ---------------- messages from the phone ---------------- */
   function onMessage(d) {
-    if (!d || typeof d !== 'object') return;
+    if (!d || typeof d !== 'object') { log('message ignored (not an object): ' + String(d).substr(0, 80)); return; }
+    if (d.type === 'theme') log('got theme ' + d.id + ' colors=' + JSON.stringify(d.colors || {}) + ' reduce=' + d.reduce + ' dwarf=' + d.dwarf);
+    else if (d.type === 'lyrics') log('got lyrics for ' + String(d.key || '').split('/').pop() + ': ' + (d.lines ? d.lines.length : 0) + ' lines, synced=' + d.synced);
+    else if (d.type === 'settings') log('got settings lyrics=' + d.lyrics + ' dwarf=' + d.dwarf + ' reduce=' + d.reduce);
+    else if (d.type === 'mood') log('got mood ' + d.mood);
+    else log('got unknown message type ' + d.type);
     if (d.type === 'theme') {
       if (typeof d.reduce === 'boolean') state.reduce = d.reduce;
       if (typeof d.dwarf === 'boolean') state.showDwarf = d.dwarf;
@@ -245,30 +279,55 @@
     var ctx = cast.framework.CastReceiverContext.getInstance();
     var pm = ctx.getPlayerManager();
     var E = cast.framework.events.EventType;
-    ctx.addCustomMessageListener(NS, function (e) { var d = e.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { return; } } onMessage(d); });
+    castCtx = ctx;
+    log('receiver ' + RECEIVER_VERSION + ' starting; ' + navigator.userAgent.substr(0, 90));
+    ctx.addEventListener(cast.framework.system.EventType.SENDER_CONNECTED, function (e) { phoneReady = true; log('phone connected (' + (e.senderId || '?') + ')'); flushLog(); });
+    ctx.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, function (e) { log('phone disconnected, reason ' + (e.reason || '?')); });
+    ctx.addCustomMessageListener(NS, function (e) { var d = e.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { log('message is not JSON: ' + d.substr(0, 80)); return; } } onMessage(d); });
+    var lastState = '';
     function pull() {
       var mi = pm.getMediaInformation(); if (!mi) return;
       var md = mi.metadata || {}; var cd = mi.customData || {};
       var key = String(cd.key || mi.contentId || '');
       var img = md.images && md.images.length ? md.images[0].url : '';
       state.hasMedia = true;
-      if (key !== state.key) { state.key = key; state.pos = 0; showLyricsFor(key); }
+      if (key !== state.key) {
+        log('song: ' + (md.title || '?') + ' / ' + (md.artist || md.albumArtist || '?') + ' key=' + key.split('/').pop() + (cd.key ? '' : ' (NO customData.key)') + ' art=' + (img ? 'yes' : 'no'));
+        state.key = key; state.pos = 0; showLyricsFor(key);
+      }
       setMeta({title: md.title, artist: md.artist || md.albumArtist, album: md.albumName, art: img});
       state.dur = pm.getDurationSec() || mi.duration || 0;
       refreshFlags();
     }
     function clock() {
       state.pos = pm.getCurrentTimeSec() || 0;
+      var ps = pm.getPlayerState ? String(pm.getPlayerState()) : '?';
+      if (ps !== lastState) { log('player state ' + lastState + ' -> ' + ps + ' at ' + fmt(state.pos)); lastState = ps; }
       state.playing = pm.getPlayerState && pm.getPlayerState() === cast.framework.messages.PlayerState.PLAYING;
       if (state.playing) tryAnalyser();
     }
-    [E.MEDIA_STATUS, E.LOAD, E.PLAYER_LOAD_COMPLETE, E.PLAYER_PLAYING, E.PAUSE, E.PLAYING, E.SEEKED].forEach(function (t) { pm.addEventListener(t, function () { pull(); clock(); }); });
-    pm.addEventListener(E.TIME_UPDATE || E.PLAYING, clock); setInterval(clock, 250);
-    pm.addEventListener(E.MEDIA_FINISHED || 'MEDIA_FINISHED', function () { state.playing = false; });
+    // Listen by NAME, and skip a name this TV's Cast library doesn't have. (An unknown name used to throw here, BEFORE ctx.start():
+    // the TV showed the page but never told the phone it was ready, and every cast failed after 60 s with code 2473.)
+    function on(name, fn) {
+      var t = E[name];
+      if (!t) { log('event ' + name + ' does not exist here, skipped'); return; }
+      try { pm.addEventListener(t, fn); } catch (e) { log('could not listen to ' + name + ': ' + (e.message || e)); }
+    }
+    try {
+      ['MEDIA_STATUS', 'PLAYER_LOAD_COMPLETE', 'PLAYING', 'PAUSE', 'SEEKED'].forEach(function (n) { on(n, function () { pull(); clock(); }); });
+      on('TIME_UPDATE', clock);
+      on('MEDIA_FINISHED', function () { state.playing = false; log('song finished'); });
+      on('ERROR', function (e) { log('PLAYER ERROR: code ' + (e.detailedErrorCode || '?') + ' ' + (e.error ? JSON.stringify(e.error).substr(0, 200) : '')); });
+    } catch (e) {
+      log('listener setup failed: ' + (e.message || e));
+    }
+    setInterval(function () { try { pull(); clock(); } catch (e) { } }, 250);
     var opts = new cast.framework.CastReceiverOptions();
     opts.maxInactivity = 1800;                     // stay up during a long pause
     opts.customNamespaces = {}; opts.customNamespaces[NS] = cast.framework.system.MessageType.JSON;
+    log('starting the Cast receiver (namespace ' + NS + ')');
     ctx.start(opts);
+    log('Cast receiver started');
   }
 
   /* ---------------- demo mode: open index.html?demo=1&theme=metal&lyrics=1&dwarf=1 in any browser ---------------- */
@@ -293,6 +352,6 @@
 
   applyTheme('classic');
   var q = new URLSearchParams(location.search);
-  if (q.get('demo') === '1' || !(window.cast && cast.framework)) { startDemo(q); }
-  else { try { startCast(); } catch (e) { console.error(e); } }
+  if (q.get('demo') === '1' || !(window.cast && cast.framework)) { log('demo mode (no Cast framework or ?demo=1)'); startDemo(q); }
+  else { try { startCast(); } catch (e) { log('START FAILED: ' + (e.message || e)); console.error(e); } }
 })();
