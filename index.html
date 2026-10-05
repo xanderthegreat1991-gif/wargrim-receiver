@@ -6,7 +6,7 @@
 <title>Wargrim 3000</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;700&family=Cormorant+Garamond:wght@500;700&family=Exo+2:wght@400;700&family=Neonderthaw&family=Orbitron:wght@500;800&family=Oswald:wght@400;600&family=Pirata+One&family=Playfair+Display:wght@500;800&family=Quicksand:wght@500;700&family=Special+Elite&family=Zilla+Slab:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="receiver.css">
+<link rel="stylesheet" href="receiver.css?v=fix-4">
 </head>
 <body class="state-idle">
   <div id="bg"></div>
@@ -48,13 +48,14 @@
     <span id="tdur">0:00</span>
   </footer>
 
+  <div id="ver"></div>
   <div id="idle"><div class="idle-title">Wargrim 3000</div><div class="idle-sub">Ready to cast</div></div>
 
   <!-- The Cast framework needs its media player element; the page draws its own screen, so hide the default one. -->
   <cast-media-player id="cmp"></cast-media-player>
 
   <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
-  <script src="themes.js"></script>
-  <script src="receiver.js"></script>
+  <script src="themes.js?v=fix-4"></script>
+  <script src="receiver.js?v=fix-4"></script>
 </body>
 </html>
