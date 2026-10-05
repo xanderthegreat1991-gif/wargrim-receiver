@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wargrim 3000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Baloo+2:wght@500;700&family=Cormorant+Garamond:wght@500;700&family=Exo+2:wght@400;700&family=Neonderthaw&family=Orbitron:wght@500;800&family=Oswald:wght@400;600&family=Pirata+One&family=Playfair+Display:wght@500;800&family=Quicksand:wght@500;700&family=Special+Elite&family=Zilla+Slab:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="receiver.css">
+</head>
+<body class="state-idle">
+  <div id="bg"></div>
+  <canvas id="fx"></canvas>
+  <div id="shade"></div>
+
+  <main id="stage">
+    <section id="left">
+      <div id="artwrap"><img id="art" alt=""></div>
+      <div id="meta">
+        <h1 id="title">Wargrim 3000</h1>
+        <h2 id="artist"></h2>
+        <h3 id="album"></h3>
+      </div>
+      <div id="dwarf" aria-hidden="true">
+        <div class="dw-glow"></div>
+        <div class="dw-bob">
+          <img class="dl" data-l="horns" src="img/dw_horns.png">
+          <img class="dl" data-l="beard_back" src="img/dw_beard_back.png">
+          <img class="dl" data-l="head" src="img/dw_head.png">
+          <img class="dl eye" id="eyes" src="img/dw_eyes_open.png">
+          <img class="dl brow" id="brows" src="img/dw_brows.png">
+          <img class="dl" data-l="nose" src="img/dw_nose.png">
+          <img class="dl" data-l="beard_front" src="img/dw_beard_front.png">
+          <img class="dl phones" data-l="glow" src="img/dw_glow.png">
+          <img class="dl phones" data-l="phones" src="img/dw_phones.png">
+          <div id="accs"></div>
+        </div>
+      </div>
+    </section>
+    <section id="lyrics">
+      <div id="lylist"></div>
+    </section>
+  </main>
+
+  <footer id="bar">
+    <span id="tcur">0:00</span>
+    <div id="prog"><i id="fill"></i></div>
+    <span id="tdur">0:00</span>
+  </footer>
+
+  <div id="idle"><div class="idle-title">Wargrim 3000</div><div class="idle-sub">Ready to cast</div></div>
+
+  <!-- The Cast framework needs its media player element; the page draws its own screen, so hide the default one. -->
+  <cast-media-player id="cmp"></cast-media-player>
+
+  <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script src="themes.js"></script>
+  <script src="receiver.js"></script>
+</body>
+</html>

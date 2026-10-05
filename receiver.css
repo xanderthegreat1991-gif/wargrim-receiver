@@ -1,0 +1,83 @@
+:root{
+  --bg:#0d1218; --surface:#17202a; --text:#e9f0f5; --dim:#8ea0b0; --accent:#2ee6c8; --accent2:#2ee6c8;
+  --title:'Oswald',sans-serif; --body:'Oswald',sans-serif; --hue:0deg;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--body),sans-serif}
+cast-media-player{display:none}
+#bg{position:fixed;inset:-6vh;background-size:cover;background-position:center;filter:blur(5vh) saturate(1.25);transform:scale(1.08);transition:background-image .6s, opacity .6s;opacity:.95}
+#shade{position:fixed;inset:0;background:
+  linear-gradient(0deg,color-mix(in srgb,var(--bg) 46%,transparent),color-mix(in srgb,var(--bg) 46%,transparent)),
+  linear-gradient(90deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.30) 45%,rgba(0,0,0,.62) 100%),
+  linear-gradient(0deg,rgba(0,0,0,.65) 0%,rgba(0,0,0,0) 28%);}
+body.light #shade{background:
+  linear-gradient(0deg,color-mix(in srgb,var(--bg) 40%,transparent),color-mix(in srgb,var(--bg) 40%,transparent)),
+  linear-gradient(90deg,rgba(255,250,238,.72) 0%,rgba(255,250,238,.55) 45%,rgba(255,250,238,.80) 100%),
+  linear-gradient(0deg,rgba(255,250,238,.85) 0%,rgba(255,250,238,0) 28%);}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+
+#stage{position:fixed;inset:0 0 11vh 0;display:flex;align-items:stretch;padding:5vh 5vw 0 5vw;gap:4vw}
+#left{flex:0 0 36vw;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;position:relative}
+#artwrap{width:40vh;height:40vh;border-radius:2.2vh;overflow:hidden;box-shadow:0 2.4vh 6vh rgba(0,0,0,.6),0 0 0 .35vh rgba(255,255,255,.12);background:var(--surface);flex:0 0 auto}
+#art{width:100%;height:100%;object-fit:cover;display:block}
+#meta{margin-top:3vh;max-width:36vw}
+#title{font-family:var(--title),sans-serif;font-weight:700;font-size:4.6vh;line-height:1.08;color:var(--text);text-shadow:0 .3vh 1.2vh rgba(0,0,0,.45);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#artist{font-family:var(--body),sans-serif;font-weight:600;font-size:3vh;margin-top:.8vh;color:var(--accent);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#album{font-family:var(--body),sans-serif;font-weight:400;font-size:2.4vh;margin-top:.6vh;color:var(--dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+body.light #title{text-shadow:none}
+
+/* ---------- lyrics block ---------- */
+#lyrics{flex:1;position:relative;overflow:hidden;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 16%,#000 84%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 16%,#000 84%,transparent 100%)}
+#lylist{position:absolute;left:0;right:0;top:0;transition:transform .55s cubic-bezier(.22,.8,.28,1)}
+.ly{font-family:var(--title),sans-serif;font-weight:700;font-size:4.2vh;line-height:1.28;padding:1.1vh 0;color:var(--dim);opacity:.38;transform-origin:left center;transition:opacity .45s,transform .45s,color .45s,text-shadow .45s}
+.ly.gap{height:2.6vh;padding:0}
+.ly.past{opacity:.22}
+.ly.cur{color:var(--text);opacity:1;transform:scale(1.07);text-shadow:0 0 2.4vh color-mix(in srgb,var(--accent) 55%,transparent)}
+.ly.near{opacity:.62}
+body.light .ly.cur{text-shadow:none;color:var(--accent)}
+body.no-lyrics #lyrics{display:none}
+body.no-lyrics #stage{justify-content:center}
+body.no-lyrics #left{flex-basis:auto;align-items:center}
+body.no-lyrics #artwrap{width:46vh;height:46vh}
+body.no-lyrics #meta{text-align:center;max-width:70vw}
+body.no-lyrics #dwarf{position:fixed;right:5vw;bottom:13vh;left:auto}
+
+/* ---------- progress bar ---------- */
+#bar{position:fixed;left:5vw;right:5vw;bottom:0;height:11vh;display:flex;align-items:center;gap:1.6vw;font-family:var(--body),sans-serif;font-size:2.4vh;color:var(--dim)}
+#prog{flex:1;height:.9vh;border-radius:.5vh;background:rgba(255,255,255,.16);overflow:hidden}
+body.light #prog{background:rgba(0,0,0,.14)}
+#fill{display:block;height:100%;width:0;border-radius:.5vh;background:var(--accent);box-shadow:0 0 1.6vh var(--accent)}
+#tcur,#tdur{min-width:5vw;text-align:center;font-variant-numeric:tabular-nums}
+
+/* ---------- dwarf (layered, same pictures as the phone) ---------- */
+#dwarf{position:relative;width:25vh;height:25vh;margin-top:1.2vh;flex:0 0 auto;transition:opacity .4s}
+#dwarf .dl,#accs img{position:absolute;inset:0;width:100%;height:100%;display:block}
+.dw-bob{position:absolute;inset:0;transform-origin:50% 90%;will-change:transform}
+.dw-glow{position:absolute;inset:-8%;border-radius:50%;background:radial-gradient(circle,var(--accent) 0%,transparent 62%);opacity:.16;transition:opacity .15s}
+.phones{filter:hue-rotate(var(--hue))}
+#accs{position:absolute;inset:0}
+body.no-dwarf #dwarf{display:none}
+body.state-idle #stage,body.state-idle #bar{opacity:0}
+#idle{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:1.4vh;text-align:center}
+body.state-idle #idle{display:flex}
+.idle-title{font-family:var(--title),sans-serif;font-size:9vh;font-weight:700;color:var(--text)}
+.idle-sub{font-family:var(--body),sans-serif;font-size:3vh;color:var(--accent);letter-spacing:.25em;text-transform:uppercase}
+
+/* theme flavour (cheap CSS only; scenes are the canvas layer) */
+body.t-synthwave #title,body.t-synthwave .ly.cur{text-shadow:0 0 1.2vh var(--accent),0 0 3vh var(--accent2)}
+body.t-synthwave #fill{background:linear-gradient(90deg,var(--accent2),var(--accent))}
+body.t-metal #fill{background:linear-gradient(90deg,#8a0f0b,#ff4a3a);box-shadow:0 0 1.8vh #ff2a1f}
+body.t-punk #title{transform:rotate(-1.6deg);background:var(--text);color:#111;display:inline-block;padding:.4vh 1.2vh;text-shadow:none}
+body.t-punk #fill{background:repeating-linear-gradient(45deg,#c9c4b0 0 .8vh,#aaa592 .8vh 1.6vh);box-shadow:none}
+body.t-reggae #fill{background:linear-gradient(90deg,var(--accent3),var(--accent),var(--accent2))}
+body.t-classical #artwrap{border-radius:.6vh;box-shadow:0 0 0 .8vh #c9a24a,0 0 0 1.3vh #6e5217,0 2.4vh 6vh rgba(0,0,0,.35)}
+body.t-hiphop #artwrap{box-shadow:0 0 0 .7vh #f2c230,0 2.4vh 6vh rgba(0,0,0,.6)}
+body.t-country #artwrap{border-radius:.8vh;box-shadow:0 0 0 .9vh #6b4423,0 0 0 1.2vh #c79a5c,0 2.4vh 6vh rgba(0,0,0,.6)}
+body.t-jazz #artwrap{border-radius:50%;box-shadow:0 0 0 1.2vh #0c0806,0 0 0 1.5vh #3a2a1f,0 2.4vh 6vh rgba(0,0,0,.65)}
+body.t-lofi #artwrap{border-radius:2.8vh}
+body.t-electronic #artwrap{box-shadow:0 0 0 .3vh var(--accent),0 0 3vh color-mix(in srgb,var(--accent) 60%,transparent)}
+
+@keyframes wgspin{to{transform:rotate(360deg)}}
+body.t-jazz.playing #art{animation:wgspin 16s linear infinite}
+body.t-lofi.playing #artwrap{animation:none}
