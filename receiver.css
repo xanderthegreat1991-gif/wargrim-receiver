@@ -27,14 +27,14 @@ body.light #shade{background:
 body.light #title,body.light #album{text-shadow:none}
 
 /* ---------- lyrics block ---------- */
-#lyrics{flex:1;position:relative;overflow:hidden;border-radius:2.4vh;background:color-mix(in srgb,var(--bg) 58%,transparent);padding:0 2.2vw;
+#lyrics{flex:1;position:relative;overflow:hidden;border-radius:2.4vh;background:color-mix(in srgb,var(--bg) 72%,transparent);padding:0 2.2vw;
   -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 16%,#000 84%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0%,#000 16%,#000 84%,transparent 100%)}
 #lylist{position:absolute;left:0;right:0;top:0;transition:transform .55s cubic-bezier(.22,.8,.28,1)}
-.ly{font-family:var(--title),sans-serif;font-weight:700;font-size:4.2vh;line-height:1.28;padding:1.1vh 0;color:var(--text);opacity:.62;transform-origin:left center;text-shadow:0 .25vh 1vh rgba(0,0,0,.65);transition:opacity .45s,transform .45s,color .45s,text-shadow .45s}
+.ly{font-family:var(--title),sans-serif;font-weight:700;font-size:4.2vh;line-height:1.28;padding:1.1vh 0;color:var(--text);opacity:.78;transform-origin:left center;text-shadow:0 .25vh 1vh rgba(0,0,0,.65);transition:opacity .45s,transform .45s,color .45s,text-shadow .45s}
 .ly.gap{height:2.6vh;padding:0}
-.ly.past{opacity:.46}
+.ly.past{opacity:.55}
 .ly.cur{color:var(--text);opacity:1;transform:scale(1.07);text-shadow:0 0 2.4vh color-mix(in srgb,var(--accent) 55%,transparent),0 .25vh 1vh rgba(0,0,0,.7)}
-.ly.near{opacity:.82}
+.ly.near{opacity:.92}
 body.light .ly{text-shadow:none}
 body.light .ly.cur{text-shadow:none;color:var(--accent-text,var(--accent))}
 body.no-lyrics #lyrics{display:none}
@@ -82,3 +82,7 @@ body.t-electronic #artwrap{box-shadow:0 0 0 .3vh var(--accent),0 0 3vh color-mix
 @keyframes wgspin{to{transform:rotate(360deg)}}
 body.t-jazz.playing #art{animation:wgspin 16s linear infinite}
 body.t-lofi.playing #artwrap{animation:none}
+
+/* small version label in the corner for the first seconds (so you can see which upload the TV runs) */
+#ver{position:fixed;right:1.2vw;bottom:1vh;font-family:var(--body),sans-serif;font-size:1.9vh;color:var(--dim);opacity:.85;transition:opacity 1.5s;pointer-events:none;z-index:5}
+#ver.gone{opacity:0}

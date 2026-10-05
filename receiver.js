@@ -10,26 +10,31 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
-  var RECEIVER_VERSION = '2026-10-05 fix-3';          // shows in the log, so you can tell which upload the TV is running
+  var RECEIVER_VERSION = '2026-10-05 fix-4';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
 
   /* ---------------- log: Chrome (chrome://inspect or http://<TV>:9222) AND the phone's log file (tag TVLOG) ---------------- */
-  var castCtx = null, phoneReady = false, logQueue = [], logSecond = 0, logCount = 0;
+  var castCtx = null, phoneReady = false, phoneListening = false, history = [], logSecond = 0, logCount = 0;
   function log(msg) {
     var line = new Date().toISOString().substr(11, 12) + ' ' + msg;
     try { console.log('[WG] ' + line); } catch (e) {}
-    // Lines are kept until a phone is connected (sending earlier only fails), then sent in order.
-    if (!castCtx || !phoneReady) { logQueue.push(line); if (logQueue.length > 60) logQueue.shift(); return; }
-    sendLog(line);
+    if (history.length < 80) history.push(line);     // the first lines (version, keep-awake...) are re-sent once the phone listens
+    if (!castCtx || !phoneListening) return;         // nobody to tell yet: sending now would only be lost
+    sendLog(line, false);
   }
-  function sendLog(line) {
+  function sendLog(line, force) {
     var now = Date.now();
     if (now - logSecond > 1000) { logSecond = now; logCount = 0; }
-    if (++logCount > 15) return;                     // at most 15 lines a second: never flood the channel
+    if (!force && ++logCount > 15) return;           // at most 15 lines a second: never flood the channel
     try { castCtx.sendCustomMessage(NS, undefined, {type: 'log', text: line}); } catch (e) { try { console.warn('[WG] log send failed', e); } catch (x) {} }
   }
-  function flushLog() { var q = logQueue; logQueue = []; q.forEach(sendLog); }
+  /** The phone said something, so it is listening: send everything logged so far (the version line first). */
+  function flushLog() {
+    if (phoneListening) return;
+    phoneListening = true;
+    history.forEach(function (l) { sendLog(l, true); });
+  }
   window.addEventListener('error', function (e) { log('JS ERROR: ' + (e.message || e) + ' at ' + (e.filename || '') + ':' + (e.lineno || '')); });
   window.addEventListener('unhandledrejection', function (e) { log('JS PROMISE ERROR: ' + (e.reason && (e.reason.message || e.reason))); });
 
@@ -284,6 +289,7 @@
 
   /* ---------------- messages from the phone ---------------- */
   function onMessage(d) {
+    flushLog();                                       // the first message proves the phone is listening
     if (!d || typeof d !== 'object') { log('message ignored (not an object): ' + String(d).substr(0, 80)); return; }
     if (d.type === 'theme') log('got theme ' + d.id + ' colors=' + JSON.stringify(d.colors || {}) + ' reduce=' + d.reduce + ' dwarf=' + d.dwarf);
     else if (d.type === 'lyrics') log('got lyrics for ' + String(d.key || '').split('/').pop() + ': ' + (d.lines ? d.lines.length : 0) + ' lines, synced=' + d.synced);
@@ -350,7 +356,7 @@
     var E = cast.framework.events.EventType;
     castCtx = ctx;
     log('receiver ' + RECEIVER_VERSION + ' starting; ' + navigator.userAgent.substr(0, 90));
-    ctx.addEventListener(cast.framework.system.EventType.SENDER_CONNECTED, function (e) { phoneReady = true; log('phone connected (' + (e.senderId || '?') + ')'); flushLog(); });
+    ctx.addEventListener(cast.framework.system.EventType.SENDER_CONNECTED, function (e) { phoneReady = true; log('phone connected (' + (e.senderId || '?') + ')'); });
     ctx.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, function (e) { log('phone disconnected, reason ' + (e.reason || '?')); });
     ctx.addCustomMessageListener(NS, function (e) { var d = e.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { log('message is not JSON: ' + d.substr(0, 80)); return; } } onMessage(d); });
     var lastState = '';
@@ -420,6 +426,10 @@
     refreshFlags();
   }
 
+  (function () {                                    // the version label in the corner, for the first 14 seconds
+    var v = document.getElementById('ver');
+    if (v) { v.textContent = 'Wargrim TV page ' + RECEIVER_VERSION.split(' ').pop(); setTimeout(function () { v.className = 'gone'; }, 14000); }
+  })();
   applyTheme('classic');
   var q = new URLSearchParams(location.search);
   if (q.get('demo') === '1' || !(window.cast && cast.framework)) { log('demo mode (no Cast framework or ?demo=1)'); startDemo(q); }
