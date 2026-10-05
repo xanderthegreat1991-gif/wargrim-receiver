@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
-  var RECEIVER_VERSION = '2026-10-05 fix-4';          // shows in the log, so you can tell which upload the TV is running
+  var RECEIVER_VERSION = '2026-10-05 fix-5';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
 
@@ -84,6 +84,11 @@
     if (textC !== t.text.toLowerCase() || dimC !== t.dim.toLowerCase() || accentText !== t.accent.toLowerCase()) {
       log('contrast: adjusted text ' + t.text + '->' + textC + ', dim ' + t.dim + '->' + dimC + ', accent text ' + t.accent + '->' + accentText + ' (on ' + behind + ')');
     }
+    // Plain rgba() colours for the scrim, the lyrics panel and the glow (older TV browsers do not know color-mix(), and then drop the whole rule)
+    function rgba(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + a + ')'; }
+    var accRgb = rgbOf(t.accent);
+    r.setProperty('--scrim', rgba(bgRgb, isLight ? 0.62 : 0.68)); r.setProperty('--panel', rgba(bgRgb, 0.72));
+    r.setProperty('--glow55', rgba(accRgb, 0.55)); r.setProperty('--glow60', rgba(accRgb, 0.6));
     r.setProperty('--bg', t.bg); r.setProperty('--surface', t.surface); r.setProperty('--text', textC);
     r.setProperty('--dim', dimC); r.setProperty('--accent', t.accent); r.setProperty('--accent-text', accentText); r.setProperty('--accent2', t.accent2 || t.accent);
     r.setProperty('--title', "'" + t.title + "'"); r.setProperty('--body', "'" + t.body + "'");
@@ -355,7 +360,11 @@
     var pm = ctx.getPlayerManager();
     var E = cast.framework.events.EventType;
     castCtx = ctx;
-    log('receiver ' + RECEIVER_VERSION + ' starting; ' + navigator.userAgent.substr(0, 90));
+    log('receiver ' + RECEIVER_VERSION + ' starting; ' + navigator.userAgent);
+    try {                                              // what this TV's browser can do (the page must not rely on newer CSS)
+      log('browser: color-mix=' + (window.CSS && CSS.supports && CSS.supports('color', 'color-mix(in srgb, red 50%, blue)')) +
+        ' inset=' + (window.CSS && CSS.supports && CSS.supports('inset', '0')) + ' screen=' + screen.width + 'x' + screen.height + ' dpr=' + window.devicePixelRatio);
+    } catch (e) { log('browser check failed: ' + (e.message || e)); }
     ctx.addEventListener(cast.framework.system.EventType.SENDER_CONNECTED, function (e) { phoneReady = true; log('phone connected (' + (e.senderId || '?') + ')'); });
     ctx.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, function (e) { log('phone disconnected, reason ' + (e.reason || '?')); });
     ctx.addCustomMessageListener(NS, function (e) { var d = e.data; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { log('message is not JSON: ' + d.substr(0, 80)); return; } } onMessage(d); });
