@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
-  var RECEIVER_VERSION = '2026-10-05 fix-1';          // shows in the log, so you can tell which upload the TV is running
+  var RECEIVER_VERSION = '2026-10-05 fix-2';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
 
@@ -149,6 +149,10 @@
       if (!el) { analyserTried = false; log('beat: no media element yet'); return; }
       // crossOrigin matters: audio from another address (the phone) routed into Web Audio WITHOUT it can come out SILENT
       log('beat: media element ' + el.tagName + ' crossOrigin=' + el.crossOrigin + ' src=' + String(el.currentSrc || el.src || '').substr(0, 60));
+      // The music comes from the phone (another address). Routing such audio into Web Audio when the element is NOT in CORS mode
+      // makes the browser output SILENCE (seen on the TV: crossOrigin=null, level 0, no sound). So only then is the analyser used;
+      // otherwise the dwarf keeps its steady bob and the sound is left alone.
+      if (!el.crossOrigin) { log('beat: skipped (crossOrigin not set, the sound would be muted); the dwarf uses the steady bob'); return; }
       var AC = window.AudioContext || window.webkitAudioContext; var ac = new AC();
       var src = ac.createMediaElementSource(el); analyser = ac.createAnalyser(); analyser.fftSize = 256;
       src.connect(analyser); analyser.connect(ac.destination); freq = new Uint8Array(analyser.frequencyBinCount);
