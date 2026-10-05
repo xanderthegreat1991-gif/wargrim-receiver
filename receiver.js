@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
-  var RECEIVER_VERSION = '2026-10-05 fix-5';          // shows in the log, so you can tell which upload the TV is running
+  var RECEIVER_VERSION = '2026-10-05 fix-6';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
 
@@ -87,7 +87,8 @@
     // Plain rgba() colours for the scrim, the lyrics panel and the glow (older TV browsers do not know color-mix(), and then drop the whole rule)
     function rgba(c, a) { return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + a + ')'; }
     var accRgb = rgbOf(t.accent);
-    r.setProperty('--scrim', rgba(bgRgb, isLight ? 0.62 : 0.68)); r.setProperty('--panel', rgba(bgRgb, 0.72));
+    r.setProperty('--scrim', rgba(bgRgb, isLight ? 0.70 : 0.72)); r.setProperty('--scrim0', rgba(bgRgb, 0));
+    r.setProperty('--panel', rgba(bgRgb, 0.82)); r.setProperty('--tint', rgba(bgRgb, isLight ? 0.30 : 0.36));
     r.setProperty('--glow55', rgba(accRgb, 0.55)); r.setProperty('--glow60', rgba(accRgb, 0.6));
     r.setProperty('--bg', t.bg); r.setProperty('--surface', t.surface); r.setProperty('--text', textC);
     r.setProperty('--dim', dimC); r.setProperty('--accent', t.accent); r.setProperty('--accent-text', accentText); r.setProperty('--accent2', t.accent2 || t.accent);
@@ -147,22 +148,30 @@
     else if (state.dur > 0 && L.length) { i = Math.min(L.length - 1, Math.floor(sec / state.dur * L.length)); }
     return i;
   }
+  /** Puts the current line at 46% of the lyrics box. Called on every tick too: fonts that finish loading, or a line that wraps
+      differently, change the line positions, and the list must follow (it used to stay where it was until the next line). */
+  var lastShift = null;
+  function recenter() {
+    var nodes = $('lylist').children, box = $('lyrics');
+    var cur = nodes[Math.max(0, state.curIdx)];
+    if (!cur) return;
+    var shift = Math.round(box.clientHeight * 0.46 - (cur.offsetTop + cur.offsetHeight / 2));
+    if (shift !== lastShift) { lastShift = shift; $('lylist').style.transform = 'translateY(' + shift + 'px)'; }
+  }
   function updateLyrics(force) {
     if (!state.lines.length) return;
     var i = lineIndexAt(state.pos);
-    if (!force && i === state.curIdx) return;
-    state.curIdx = i;
-    var nodes = $('lylist').children, box = $('lyrics');
-    for (var k = 0; k < nodes.length; k++) {
-      var n = nodes[k], d = k - i;
-      n.classList.toggle('cur', d === 0); n.classList.toggle('past', d < 0);
-      n.classList.toggle('near', d > 0 && d <= 2);
+    if (force || i !== state.curIdx) {
+      state.curIdx = i;
+      var nodes = $('lylist').children;
+      for (var k = 0; k < nodes.length; k++) {
+        var n = nodes[k], d = k - i;
+        n.classList.toggle('cur', d === 0); n.classList.toggle('past', d < 0);
+        n.classList.toggle('near', d > 0 && d <= 2);
+      }
+      lastShift = null;
     }
-    var cur = nodes[Math.max(0, i)];
-    if (cur) {
-      var center = box.clientHeight * 0.46;
-      $('lylist').style.transform = 'translateY(' + Math.round(center - (cur.offsetTop + cur.offsetHeight / 2)) + 'px)';
-    }
+    recenter();
   }
 
   /* ---------------- progress (4 times a second) ---------------- */
