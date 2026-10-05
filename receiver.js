@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var NS = 'urn:x-cast:com.wargrim.player';
-  var RECEIVER_VERSION = '2026-10-05 fix-2';          // shows in the log, so you can tell which upload the TV is running
+  var RECEIVER_VERSION = '2026-10-05 fix-3';          // shows in the log, so you can tell which upload the TV is running
   var $ = function (id) { return document.getElementById(id); };
   var body = document.body;
 
@@ -46,18 +46,46 @@
 
   /* ---------------- theme ---------------- */
   var activeTheme = themeOf('classic');
+  /* ---- contrast: every text colour is checked against the background and moved toward white/black until it is readable ---- */
+  function rgbOf(h) {
+    h = String(h || '').trim().replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h.substr(0, 6), 16);
+    return isNaN(n) ? [128, 128, 128] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function hexOfRgb(c) { return '#' + c.map(function (v) { v = Math.max(0, Math.min(255, Math.round(v))); return (v < 16 ? '0' : '') + v.toString(16); }).join(''); }
+  function lumOf(c) { var a = c.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2]; }
+  function ratioOf(a, b) { var x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function mixRgb(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  /** [fg] moved toward white (dark background) or black (light background) until it has at least [min]:1 against [bg]. */
+  function readable(fg, bg, min) {
+    var c = rgbOf(fg), b = rgbOf(bg);
+    if (ratioOf(c, b) >= min) return hexOfRgb(c);
+    var toward = lumOf(b) < 0.4 ? [255, 255, 255] : [0, 0, 0];
+    for (var t = 0.05; t <= 1.001; t += 0.05) { var m = mixRgb(c, toward, t); if (ratioOf(m, b) >= min) return hexOfRgb(m); }
+    return hexOfRgb(toward);
+  }
+
   function applyTheme(id, colors) {
     var t = Object.assign({}, themeOf(id));
     if (colors) for (var k in colors) if (colors[k]) t[k] = colors[k];
     activeTheme = t; state.themeId = id;
     var r = document.documentElement.style;
-    r.setProperty('--bg', t.bg); r.setProperty('--surface', t.surface); r.setProperty('--text', t.text);
-    r.setProperty('--dim', t.dim); r.setProperty('--accent', t.accent); r.setProperty('--accent2', t.accent2 || t.accent);
+    // What the text really sits on: the theme background under the scrim, with up to ~30% of the album art showing through
+    // (pessimistic mid-grey), so the checks hold whatever the cover looks like.
+    var bgRgb = rgbOf(t.bg), isLight = !!t.light || lumOf(bgRgb) > 0.5;
+    var behind = hexOfRgb(mixRgb(bgRgb, [128, 128, 128], 0.30));
+    var textC = readable(t.text, behind, 7), dimC = readable(t.dim, behind, 4.5), accentText = readable(t.accent, behind, 4.5);
+    if (textC !== t.text.toLowerCase() || dimC !== t.dim.toLowerCase() || accentText !== t.accent.toLowerCase()) {
+      log('contrast: adjusted text ' + t.text + '->' + textC + ', dim ' + t.dim + '->' + dimC + ', accent text ' + t.accent + '->' + accentText + ' (on ' + behind + ')');
+    }
+    r.setProperty('--bg', t.bg); r.setProperty('--surface', t.surface); r.setProperty('--text', textC);
+    r.setProperty('--dim', dimC); r.setProperty('--accent', t.accent); r.setProperty('--accent-text', accentText); r.setProperty('--accent2', t.accent2 || t.accent);
     r.setProperty('--title', "'" + t.title + "'"); r.setProperty('--body', "'" + t.body + "'");
     r.setProperty('--hue', (t.hue || 0) + 'deg');
     body.className = body.className.replace(/\bt-\S+/g, '').replace(/\blight\b/g, '').trim();
     body.classList.add('t-' + id.replace(/[^a-z0-9]/gi, ''));
-    if (t.light) body.classList.add('light');
+    if (isLight) body.classList.add('light');
     // accessories (drawn on top of the dwarf, same pictures as the phone)
     var accs = $('accs'); accs.innerHTML = '';
     (t.acc || []).forEach(function (n) { var im = new Image(); im.src = 'img/dw_acc_' + n + '.png'; accs.appendChild(im); });
@@ -144,7 +172,7 @@
   function tryAnalyser() {                      // best effort: read the beat from the audio the TV is playing
     if (analyserTried) return; analyserTried = true;
     try {
-      var el = document.querySelector('video,audio');
+      var el = document.querySelector('video:not(#wg-keepalive),audio');
       if (!el) { var cmp = document.getElementById('cmp'); el = cmp && cmp.shadowRoot && cmp.shadowRoot.querySelector('video,audio'); }
       if (!el) { analyserTried = false; log('beat: no media element yet'); return; }
       // crossOrigin matters: audio from another address (the phone) routed into Web Audio WITHOUT it can come out SILENT
@@ -278,6 +306,43 @@
     }
   }
 
+  /* ---------------- keep the TV screen on: no screensaver / wallpapers while the page is up ---------------- */
+  var awake = {lock: null, video: null, tick: null};
+  function keepScreenOn() {
+    // 1. the Screen Wake Lock API, where this TV's browser has it
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        var ask = function () {
+          navigator.wakeLock.request('screen').then(function (l) {
+            awake.lock = l; log('keep-awake: screen wake lock granted');
+            l.addEventListener('release', function () { awake.lock = null; log('keep-awake: wake lock released by the system'); });
+          }).catch(function (e) { log('keep-awake: wake lock refused: ' + (e.message || e)); });
+        };
+        ask();
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && !awake.lock) ask(); });
+      } else { log('keep-awake: this TV has no wake lock API (using the keep-alive video only)'); }
+    } catch (e) { log('keep-awake: wake lock error: ' + (e.message || e)); }
+    // 2. a tiny live video that is always playing (TVs normally keep the display on while any video plays). It is muted, 4 px,
+    //    nearly invisible, and has its own id so the beat analyser never mistakes it for the music.
+    try {
+      var cv = document.createElement('canvas'); cv.width = 16; cv.height = 16;
+      var g = cv.getContext('2d'), n = 0;
+      var v = document.createElement('video');
+      v.id = 'wg-keepalive'; v.muted = true; v.loop = true; v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+      v.style.cssText = 'position:fixed;right:0;bottom:0;width:4px;height:4px;opacity:0.02;pointer-events:none;z-index:-1';
+      v.srcObject = cv.captureStream(4);
+      document.body.appendChild(v);
+      var paint = function () { g.fillStyle = 'rgb(' + ((n * 7) % 40) + ',0,0)'; g.fillRect(0, 0, 16, 16); n++; };
+      paint(); awake.tick = setInterval(paint, 500);       // a changing picture, so the stream keeps producing frames
+      var go = function () {
+        var p = v.play();
+        if (p && p.then) p.then(function () { log('keep-awake: keep-alive video playing'); }).catch(function (e) { log('keep-awake: keep-alive video refused: ' + (e.message || e)); });
+      };
+      go(); awake.video = v;
+      setInterval(function () { if (v.paused) go(); }, 5000);
+    } catch (e) { log('keep-awake: keep-alive video error: ' + (e.message || e)); }
+  }
+
   /* ---------------- Cast framework ---------------- */
   function startCast() {
     var ctx = cast.framework.CastReceiverContext.getInstance();
@@ -329,6 +394,7 @@
     var opts = new cast.framework.CastReceiverOptions();
     opts.maxInactivity = 1800;                     // stay up during a long pause
     opts.customNamespaces = {}; opts.customNamespaces[NS] = cast.framework.system.MessageType.JSON;
+    keepScreenOn();
     log('starting the Cast receiver (namespace ' + NS + ')');
     ctx.start(opts);
     log('Cast receiver started');
